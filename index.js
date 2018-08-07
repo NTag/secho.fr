@@ -3,6 +3,7 @@ const app         = express();
 const fs          = require('fs');
 const randomColor = require('randomcolor');
 const _           = require('lodash');
+const puppeteer   = require('puppeteer');
 const { splitSentence, loadDictionnary } = require('words-splitter');
 
 loadDictionnary();
@@ -38,6 +39,13 @@ const SECHO = [
   "sééééé chooooo",
   "là, it's very cho..",
   "awi awé, sécho...",
+  "juste, sécho.",
+  "sé-cho",
+  "cé vrément tro mille cho tsé",
+  "azy sécho la",
+  "euuuh, mais sécho!",
+  "nn mé, c vréman cho",
+  "sécho, mais de ouf quoi",
 ];
 const secho = () => {
   const nb = SECHO.length;
@@ -64,7 +72,7 @@ app.get('/', (req, res) => {
       text = text.replace('{{TOPIC}}', TOPIC);
       text = text.replace('{{OG_TITLE}}', TOPIC);
       text = text.replace('{{OG_DESCRIPTION}}', SECHO);
-      text = text.replace('{{OG_URL}}', `${subDomain}.`);
+      text = text.replace(/{{OG_URL}}/g, `${subDomain}.`);
       replaced = true;
     }
   }
@@ -72,7 +80,7 @@ app.get('/', (req, res) => {
   if (!replaced) {
     text = text.replace('<div class="topic">{{TOPIC}}</div>', '');
     text = text.replace('<meta property="og:description" content="{{OG_DESCRIPTION}}" />', '');
-    text = text.replace('{{OG_URL}}', '');
+    text = text.replace(/{{OG_URL}}/g, '');
     text = text.replace('{{OG_TITLE}}', SECHO);
   }
 
@@ -82,8 +90,23 @@ app.get('/', (req, res) => {
   res.send(text);
 });
 
+app.get('/img', async (req, res) => {
+  await page.goto(`https://${req.headers.host}`);
+  const img = await page.screenshot();
+  res.contentType('image/png');
+  res.send(img);
+});
+
 app.use(express.static('public'));
 
-app.listen(8080, () => {
-  console.log('sécho.fr ready on port 8080');
-});
+let page;
+const main = async () => {
+  const browser = await puppeteer.launch({args: ['--no-sandbox', '--disable-setuid-sandbox']});
+  page = await browser.newPage();
+
+  app.listen(8080, () => {
+    console.log('sécho.fr ready on port 8080');
+  });
+};
+
+main();
