@@ -64,7 +64,7 @@ app.get('/', (req, res) => {
       text = text.replace('{{TOPIC}}', TOPIC);
       text = text.replace('{{OG_TITLE}}', TOPIC);
       text = text.replace('{{OG_DESCRIPTION}}', SECHO);
-      text = text.replace('{{OG_URL}}', subDomain);
+      text = text.replace('{{OG_URL}}', `${subDomain}.`);
       replaced = true;
     }
   }
