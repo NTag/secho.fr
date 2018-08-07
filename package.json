@@ -1,0 +1,17 @@
+{
+  "name": "secho.fr",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.16.2",
+    "lodash": "^4.17.10",
+    "randomcolor": "^0.5.3",
+    "words-splitter": "^1.1.0"
+  }
+}
