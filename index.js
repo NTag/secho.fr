@@ -4,9 +4,17 @@ const fs          = require('fs');
 const randomColor = require('randomcolor');
 const _           = require('lodash');
 const puppeteer   = require('puppeteer');
-const { splitSentence, loadDictionnary } = require('words-splitter');
+const useragent   = require('express-useragent');
+const punycode    = require('punycode');
+const { addWord, splitSentence, loadDictionary } = require('words-splitter');
 
-loadDictionnary();
+app.use(useragent.express());
+
+loadDictionary().then(() => {
+  if (process.env.WORDS) {
+    process.env.WORDS.split(',').forEach(addWord);
+  }
+});
 
 const SECHO = [
   "c mille cho",
@@ -46,6 +54,11 @@ const SECHO = [
   "euuuh, mais sécho!",
   "nn mé, c vréman cho",
   "sécho, mais de ouf quoi",
+  "bah, la.. sécho",
+  "séch😵",
+  "sé, juste, cho",
+  "sécho, çtout.",
+  "jcroi tapavu komen sécho !",
 ];
 const secho = () => {
   const nb = SECHO.length;
@@ -59,35 +72,73 @@ const topic = (text) => {
 };
 
 const template = fs.readFileSync('./index.html', { encoding: 'utf8' });
-app.get('/', (req, res) => {
-  let text        = template;
-  let replaced    = false;
+app.get('/', async (req, res) => {
+  if (req.useragent.source.match(/TelegramBot/)) {
+    await page.goto(`https://${req.headers.host}`);
+    const img = await page.screenshot();
+    res.contentType('image/png');
+    res.send(img);
+  } else {
+    const host      = punycode.toUnicode(req.headers.host);
+    let text        = template;
+    let replaced    = false;
+    const hostParts = host.split('.');
+    const SECHO     = secho();
+
+    if (hostParts.length > 2) {
+      const subDomain = hostParts[0];
+      if (subDomain && subDomain !== 'www') {
+        const TOPIC = topic(subDomain);
+        text = text.replace(/{{TOPIC}}/g, TOPIC);
+        text = text.replace(/{{OG_TITLE}}/g, TOPIC);
+        text = text.replace(/{{OG_DESCRIPTION}}/g, SECHO);
+        text = text.replace(/{{OG_URL}}/g, `${subDomain}.`);
+        replaced = true;
+      }
+    }
+
+    if (!replaced) {
+      text = text.replace('<div class="topic">{{TOPIC}}</div>', '');
+      text = text.replace('<meta property="og:description" content="{{OG_DESCRIPTION}}" />', '');
+      text = text.replace('<meta property="twitter:description" content="{{OG_DESCRIPTION}}" />', '');
+      text = text.replace(/{{OG_URL}}/g, '');
+      text = text.replace(/{{TOPIC}}/g, '');
+      text = text.replace(/{{OG_TITLE}}/g, SECHO);
+    }
+
+    text = text.replace(/{{SECHO}}/g, SECHO);
+    text = text.replace(/{{COLOR}}/g, randomColor({ luminosity: 'dark' }));
+
+    res.send(text);
+  }
+});
+
+app.get('/oembed', async (req, res) => {
   const hostParts = req.headers.host.split('.');
   const SECHO     = secho();
+
+  const o = {
+    version: "1.0",
+    type: "photo",
+    width: 800,
+    height: 600,
+    title: SECHO,
+    url: `https://${req.headers.host}/img`,
+    author_name: "sécho",
+    author_url: `https://${req.headers.host}`,
+    provider_name: "sécho",
+    provider_url: "https://sécho.fr"
+  };
 
   if (hostParts.length > 2) {
     const subDomain = hostParts[0];
     if (subDomain && subDomain !== 'www') {
       const TOPIC = topic(subDomain);
-      text = text.replace('{{TOPIC}}', TOPIC);
-      text = text.replace('{{OG_TITLE}}', TOPIC);
-      text = text.replace('{{OG_DESCRIPTION}}', SECHO);
-      text = text.replace(/{{OG_URL}}/g, `${subDomain}.`);
-      replaced = true;
+      o.title = `${TOPIC} ? ${SECHO}`;
     }
   }
 
-  if (!replaced) {
-    text = text.replace('<div class="topic">{{TOPIC}}</div>', '');
-    text = text.replace('<meta property="og:description" content="{{OG_DESCRIPTION}}" />', '');
-    text = text.replace(/{{OG_URL}}/g, '');
-    text = text.replace('{{OG_TITLE}}', SECHO);
-  }
-
-  text = text.replace('{{SECHO}}', SECHO);
-  text = text.replace('{{COLOR}}', randomColor({ luminosity: 'dark' }));
-
-  res.send(text);
+  res.send(o);
 });
 
 app.get('/img', async (req, res) => {
