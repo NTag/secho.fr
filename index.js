@@ -22,6 +22,7 @@ const SECHO = [
   "nn mé att, comment sécho",
   "put1, sécho",
   "sécho de ouf...",
+  "sécho 2 ouf",
   "sécho comme même...",
   "c tro chaud put1",
   "sécho sécho!",
@@ -59,6 +60,14 @@ const SECHO = [
   "sé, juste, cho",
   "sécho, çtout.",
   "jcroi tapavu komen sécho !",
+  "bah, séchooo",
+  "s é c h o",
+  "c cro cro cho",
+  "ⓢⓔⓒⓗⓞ",
+  "sé 1000 cho",
+  "a naan mé la... sécho",
+  "c juste tro tro tro tro tro tro cho",
+  "g jamé ri1 vu d'aussi cho",
 ];
 const secho = () => {
   const nb = SECHO.length;
@@ -67,7 +76,7 @@ const secho = () => {
 };
 
 const topic = (text) => {
-  let sentence = splitSentence(_.deburr(text));
+  const sentence = splitSentence(text.toLocaleLowerCase());
   return sentence.slice(0, 1).toLocaleUpperCase() + sentence.slice(1) + ' ?';
 };
 
