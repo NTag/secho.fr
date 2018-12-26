@@ -68,6 +68,18 @@ const SECHO = [
   "a naan mé la... sécho",
   "c juste tro tro tro tro tro tro cho",
   "g jamé ri1 vu d'aussi cho",
+  "ben dis donc, sé bien cho..",
+  "hihihi sécho",
+  "sécho bro",
+  "s-é-c-h-o",
+  "😶",
+  "😶 😶 😶",
+  "c juste tellement cho",
+  "g plu d'mots tellement sécho",
+  "sécho",
+  "c cho",
+  "sécho hihi",
+  "comme même sécho",
 ];
 const secho = () => {
   const nb = SECHO.length;
