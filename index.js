@@ -80,6 +80,11 @@ const SECHO = [
   "c cho",
   "sécho hihi",
   "comme même sécho",
+  "sécho tî boubou !",
+  "et bah tî boubou, sécho...",
+  "mon tî boubou, comment sécho..",
+  "c komeme 1000 cho",
+  "c komeme cho..."
 ];
 const secho = () => {
   const nb = SECHO.length;
