@@ -1,0 +1,13 @@
+version: "3.7"
+
+services:
+  backend:
+    image: docker.ntag.fr/frsecho:latest
+    ports:
+      - "20020:8080"
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 30s
+        order: start-first
