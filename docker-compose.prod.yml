@@ -1,0 +1,20 @@
+# Stack frsecho on three.ntag.fr, deployed by the deploy gateway from
+# .github/workflows/deploy.yml: sécho.fr (xn--scho-bpa.fr), www. and every
+# subdomain (the wildcard certificate is renewed by lego on three, see
+# NTag/three README), 20020.
+services:
+  backend:
+    image: docker.ntag.fr/frsecho:latest
+    ports:
+      - "20020:8080"
+    deploy:
+      # One replica: each needs ~1.1 GB (the word list) plus Chromium.
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      resources:
+        limits:
+          memory: 1600M
+          cpus: "1"

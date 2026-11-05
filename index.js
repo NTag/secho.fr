@@ -2,10 +2,9 @@ const express = require("express");
 const app = express();
 const fs = require("fs");
 const randomColor = require("randomcolor");
-const _ = require("lodash");
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-core");
 const useragent = require("express-useragent");
-const punycode = require("punycode");
+const punycode = require("punycode/"); // the npm package, not the deprecated built-in
 const { addWord, splitSentence, loadDictionary } = require("words-splitter");
 
 app.use(useragent.express());
@@ -116,55 +115,87 @@ const topic = (text) => {
 };
 
 const template = fs.readFileSync("./index.html", { encoding: "utf8" });
-app.get("/", async (req, res) => {
-  if (req.useragent.source.match(/TelegramBot/)) {
-    await page.goto(`https://${req.headers.host}`);
-    const img = await page.screenshot();
-    res.contentType("image/png");
-    res.send(img);
+
+// Only sécho.fr and its subdomains reach the app (Caddy routes by host); the
+// host still picks the page's topic, so anything else is refused.
+const HOST = /^(?:([a-z0-9-]+)\.)?xn--scho-bpa\.fr$/;
+const hostOf = (req) => {
+  const host = (req.headers.host || "").toLowerCase().replace(/:\d+$/, "");
+  return HOST.test(host) ? host : null;
+};
+
+const subDomainOf = (host) => {
+  const sub = HOST.exec(host)[1];
+  return sub && sub !== "www" ? punycode.toUnicode(sub) : null;
+};
+
+const render = (host) => {
+  let text = template;
+  const SECHO = secho();
+  const subDomain = subDomainOf(host);
+
+  if (subDomain) {
+    const TOPIC = topic(subDomain);
+    text = text.replace(/{{TOPIC}}/g, TOPIC);
+    text = text.replace(/{{OG_TITLE}}/g, TOPIC);
+    text = text.replace(/{{OG_DESCRIPTION}}/g, SECHO);
+    text = text.replace(/{{OG_URL}}/g, `${subDomain}.`);
   } else {
-    const host = punycode.toUnicode(req.headers.host);
-    let text = template;
-    let replaced = false;
-    const hostParts = host.split(".");
-    const SECHO = secho();
-
-    if (hostParts.length > 2) {
-      const subDomain = hostParts[0];
-      if (subDomain && subDomain !== "www") {
-        const TOPIC = topic(subDomain);
-        text = text.replace(/{{TOPIC}}/g, TOPIC);
-        text = text.replace(/{{OG_TITLE}}/g, TOPIC);
-        text = text.replace(/{{OG_DESCRIPTION}}/g, SECHO);
-        text = text.replace(/{{OG_URL}}/g, `${subDomain}.`);
-        replaced = true;
-      }
-    }
-
-    if (!replaced) {
-      text = text.replace('<div class="topic">{{TOPIC}}</div>', "");
-      text = text.replace(
-        '<meta property="og:description" content="{{OG_DESCRIPTION}}" />',
-        ""
-      );
-      text = text.replace(
-        '<meta property="twitter:description" content="{{OG_DESCRIPTION}}" />',
-        ""
-      );
-      text = text.replace(/{{OG_URL}}/g, "");
-      text = text.replace(/{{TOPIC}}/g, "");
-      text = text.replace(/{{OG_TITLE}}/g, SECHO);
-    }
-
-    text = text.replace(/{{SECHO}}/g, SECHO);
-    text = text.replace(/{{COLOR}}/g, randomColor({ luminosity: "dark" }));
-
-    res.send(text);
+    text = text.replace('<div class="topic">{{TOPIC}}</div>', "");
+    text = text.replace(
+      '<meta property="og:description" content="{{OG_DESCRIPTION}}" />',
+      ""
+    );
+    text = text.replace(
+      '<meta property="twitter:description" content="{{OG_DESCRIPTION}}" />',
+      ""
+    );
+    text = text.replace(/{{OG_URL}}/g, "");
+    text = text.replace(/{{TOPIC}}/g, "");
+    text = text.replace(/{{OG_TITLE}}/g, SECHO);
   }
+
+  text = text.replace(/{{SECHO}}/g, SECHO);
+  text = text.replace(/{{COLOR}}/g, randomColor({ luminosity: "dark" }));
+  return text;
+};
+
+// The preview image: the page rendered by Chromium, from its own HTML (no
+// request back to the site). One page per screenshot, closed afterwards.
+let browser;
+const screenshot = async (host) => {
+  const page = await browser.newPage();
+  try {
+    await page.setViewport({ width: 800, height: 600 });
+    await page.setContent(render(host), { waitUntil: "networkidle0", timeout: 10000 });
+    return await page.screenshot();
+  } finally {
+    await page.close();
+  }
+};
+
+const sendScreenshot = async (req, res) => {
+  const host = hostOf(req);
+  if (!host) return res.status(400).end();
+  try {
+    res.contentType("image/png");
+    res.send(await screenshot(host));
+  } catch (e) {
+    console.error("screenshot failed:", e.message);
+    res.status(500).end();
+  }
+};
+
+app.get("/", async (req, res) => {
+  const host = hostOf(req);
+  if (!host) return res.status(400).end();
+  if (req.useragent.source.match(/TelegramBot/)) return sendScreenshot(req, res);
+  res.send(render(host));
 });
 
-app.get("/oembed", async (req, res) => {
-  const hostParts = req.headers.host.split(".");
+app.get("/oembed", (req, res) => {
+  const host = hostOf(req);
+  if (!host) return res.status(400).end();
   const SECHO = secho();
 
   const o = {
@@ -173,39 +204,33 @@ app.get("/oembed", async (req, res) => {
     width: 800,
     height: 600,
     title: SECHO,
-    url: `https://${req.headers.host}/img`,
+    url: `https://${host}/img`,
     author_name: "sécho",
-    author_url: `https://${req.headers.host}`,
+    author_url: `https://${host}`,
     provider_name: "sécho",
     provider_url: "https://sécho.fr",
   };
 
-  if (hostParts.length > 2) {
-    const subDomain = hostParts[0];
-    if (subDomain && subDomain !== "www") {
-      const TOPIC = topic(subDomain);
-      o.title = `${TOPIC} ? ${SECHO}`;
-    }
-  }
+  const subDomain = subDomainOf(host);
+  if (subDomain) o.title = `${topic(subDomain)} ${SECHO}`; // topic() ends with " ?"
 
   res.send(o);
 });
 
-app.get("/img", async (req, res) => {
-  await page.goto(`https://${req.headers.host}`);
-  const img = await page.screenshot();
-  res.contentType("image/png");
-  res.send(img);
-});
+app.get("/img", sendScreenshot);
 
 app.use(express.static("public"));
 
-let page;
 const main = async () => {
-  const browser = await puppeteer.launch({
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  browser = await puppeteer.launch({
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+    // In a container, as an unprivileged user: no Chromium sandbox available.
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
   });
-  page = await browser.newPage();
+  browser.on("disconnected", () => {
+    console.error("Chromium exited");
+    process.exit(1);
+  });
 
   app.listen(8080, () => {
     console.log("sécho.fr ready on port 8080");
